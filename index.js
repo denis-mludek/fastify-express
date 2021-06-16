@@ -54,9 +54,9 @@ function expressPlugin(fastify, options, next) {
   function runConnect(reqF, replyF, nextF) {
     if (this[kMiddlewares].length > 0) {
       for (const [headerName, headerValue] of Object.entries(
-        reply.getHeaders()
+        replyF.getHeaders()
       )) {
-        reply.raw.setHeader(headerName, headerValue);
+        replyF.raw.setHeader(headerName, headerValue);
       }
 
       this.express(reqF.raw, replyF.raw);
