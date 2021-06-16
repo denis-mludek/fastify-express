@@ -1,83 +1,93 @@
-'use strict'
+"use strict";
 
-const fp = require('fastify-plugin')
-const symbols = require('fastify/lib/symbols')
-const Express = require('express')
-const kMiddlewares = Symbol('fastify-express-middlewares')
+const fp = require("fastify-plugin");
+const symbols = require("fastify/lib/symbols");
+const Express = require("express");
+const kMiddlewares = Symbol("fastify-express-middlewares");
 
-function expressPlugin (fastify, options, next) {
-  fastify.decorate('use', use)
-  fastify[kMiddlewares] = []
-  fastify.decorate('express', Express())
-  fastify.express.disable('x-powered-by')
+function expressPlugin(fastify, options, next) {
+  fastify.decorate("use", use);
+  fastify[kMiddlewares] = [];
+  fastify.decorate("express", Express());
+  fastify.express.disable("x-powered-by");
 
   fastify
-    .addHook('onRequest', enhanceRequest)
-    .addHook('onRequest', runConnect)
-    .addHook('onRegister', onRegister)
+    .addHook("onRequest", enhanceRequest)
+    .addHook("onRequest", runConnect)
+    .addHook("onRegister", onRegister);
 
-  function use (path, fn) {
-    if (typeof path === 'string') {
-      const prefix = this[symbols.kRoutePrefix]
-      path = prefix + (path === '/' && prefix.length > 0 ? '' : path)
+  function use(path, fn) {
+    if (typeof path === "string") {
+      const prefix = this[symbols.kRoutePrefix];
+      path = prefix + (path === "/" && prefix.length > 0 ? "" : path);
     }
-    this[kMiddlewares].push([path, fn])
+    this[kMiddlewares].push([path, fn]);
     if (fn == null) {
-      this.express.use(path)
+      this.express.use(path);
     } else {
-      this.express.use(path, fn)
+      this.express.use(path, fn);
     }
-    return this
+    return this;
   }
 
-  function enhanceRequest (req, reply, next) {
-    req.raw.originalUrl = req.raw.url
-    req.raw.id = req.id
-    req.raw.hostname = req.hostname
-    req.raw.ip = req.ip
-    req.raw.ips = req.ips
-    req.raw.log = req.log
-    reply.raw.log = req.log
+  function enhanceRequest(req, reply, next) {
+    req.raw.originalUrl = req.raw.url;
+    req.raw.id = req.id;
+    req.raw.hostname = req.hostname;
+    req.raw.ip = req.ip;
+    req.raw.ips = req.ips;
+    req.raw.log = req.log;
+    reply.raw.log = req.log;
 
-    const originalProtocol = req.raw.protocol
+    const originalProtocol = req.raw.protocol;
     // Make it lazy as it does a bit of work
-    Object.defineProperty(req.raw, 'protocol', {
-      get () {
+    Object.defineProperty(req.raw, "protocol", {
+      get() {
         // added in Fastify@3.5, so handle it missing
-        return req.protocol || originalProtocol
-      }
-    })
+        return req.protocol || originalProtocol;
+      },
+    });
 
-    next()
+    next();
   }
 
-  function runConnect (req, reply, next) {
+  function runConnect(reqF, replyF, nextF) {
     if (this[kMiddlewares].length > 0) {
-      for (const [headerName, headerValue] of Object.entries(reply.getHeaders())) {
-        reply.raw.setHeader(headerName, headerValue)
+      for (const [headerName, headerValue] of Object.entries(
+        reply.getHeaders()
+      )) {
+        reply.raw.setHeader(headerName, headerValue);
       }
 
-      this.express(req.raw, reply.raw, next)
+      this.express(reqF.raw, replyF.raw);
+      this.express.use((reqE, _resE, _nextE) => {
+        console.log("runConnect custom", reqE);
+        if (reqE.oidc) {
+          console.log();
+          reqF.oidc = reqE.oidc;
+        }
+        nextF();
+      });
     } else {
-      next()
+      nextF();
     }
   }
 
-  function onRegister (instance) {
-    const middlewares = instance[kMiddlewares].slice()
-    instance[kMiddlewares] = []
-    instance.decorate('express', Express())
-    instance.express.disable('x-powered-by')
-    instance.decorate('use', use)
+  function onRegister(instance) {
+    const middlewares = instance[kMiddlewares].slice();
+    instance[kMiddlewares] = [];
+    instance.decorate("express", Express());
+    instance.express.disable("x-powered-by");
+    instance.decorate("use", use);
     for (const middleware of middlewares) {
-      instance.use(...middleware)
+      instance.use(...middleware);
     }
   }
 
-  next()
+  next();
 }
 
 module.exports = fp(expressPlugin, {
-  fastify: '>=3.0.0',
-  name: 'fastify-express'
-})
+  fastify: ">=3.0.0",
+  name: "fastify-express",
+});
