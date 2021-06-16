@@ -1,20 +1,25 @@
-import { Application } from 'express'
-import { FastifyPluginCallback } from 'fastify'
+import { Application } from "express";
+import { FastifyPluginCallback } from "fastify";
 
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyInstance {
     /**
      * Express middleware function
      */
-    use: Application['use']
+    use: Application["use"];
 
     /**
      * Express application instance
      */
-    express: Application
+    express: Application;
   }
 }
 
-export const fastifyExpress: FastifyPluginCallback
+type PluginOptions = {
+  requestKeysToCopy: string[];
+  replyKeysToCopy: string[];
+};
 
-export default fastifyExpress
+export const fastifyExpress: FastifyPluginCallback<PluginOptions>;
+
+export default fastifyExpress;

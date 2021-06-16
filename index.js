@@ -11,6 +11,8 @@ function expressPlugin(fastify, options, next) {
   fastify.decorate("express", Express());
   fastify.express.disable("x-powered-by");
 
+  const { requestKeysToCopy = [], replyKeysToCopy = [] } = options;
+
   fastify
     .addHook("onRequest", enhanceRequest)
     .addHook("onRequest", runConnect)
@@ -51,25 +53,31 @@ function expressPlugin(fastify, options, next) {
     next();
   }
 
-  function runConnect(reqF, replyF, nextF) {
+  function runConnect(reqFastify, replyFastify, nextFastify) {
     if (this[kMiddlewares].length > 0) {
       for (const [headerName, headerValue] of Object.entries(
-        replyF.getHeaders()
+        replyFastify.getHeaders()
       )) {
-        replyF.raw.setHeader(headerName, headerValue);
+        replyFastify.raw.setHeader(headerName, headerValue);
       }
 
-      this.express(reqF.raw, replyF.raw);
-      this.express.use((reqE, _resE, _nextE) => {
-        console.log("runConnect custom", reqE);
-        if (reqE.oidc) {
-          console.log();
-          reqF.oidc = reqE.oidc;
-        }
-        nextF();
+      this.express(reqFastify.raw, replyFastify.raw);
+      this.express.use((reqExpress, repExpress) => {
+        requestKeysToCopy.forEach((key) => {
+          if (reqExpress[key]) {
+            reqFastify[key] = reqExpress[key];
+          }
+        });
+        replyKeysToCopy.forEach((key) => {
+          if (repExpress[key]) {
+            replyFastify[key] = repExpress[key];
+          }
+        });
+
+        nextFastify();
       });
     } else {
-      nextF();
+      nextFastify();
     }
   }
 
